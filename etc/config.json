@@ -1,0 +1,25 @@
+{
+  "force": false,
+  "site_url": "",
+  "cdn": "",
+  "jwt_secret": "",
+  "token_expires_in": 48,
+  "database": {
+    "type": "sqlite3",
+    "db_file": "/var/packages/openlist/var/data.db",
+    "cache_timeout": 600
+  },
+  "scheme": {
+    "address": "0.0.0.0",
+    "http_port": 5244,
+    "https_port": -1
+  },
+  "log": {
+    "enable": true,
+    "name": "/var/packages/openlist/var/log.log",
+    "max_size": 10,
+    "max_backups": 5,
+    "max_age": 28,
+    "compress": false
+  }
+}

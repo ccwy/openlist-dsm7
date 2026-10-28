@@ -1,0 +1,155 @@
+name: Build SPK Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'OpenList version (e.g. 4.2.9)'
+        required: true
+        default: '4.2.9'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          # AMD64 — DS224+, DS920+, DS1522+ etc.
+          - arch: x64
+            asset_name: openlist-linux-amd64.tar.gz
+          # ARM64 — DS423+, DS623slim etc.
+          - arch: arm64
+            asset_name: openlist-linux-arm64.tar.gz
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            # Extract version from tag: v4.2.9 → 4.2.9
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building OpenList v$VERSION for ${{ matrix.arch }}"
+
+      - name: Download OpenList binary
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          ASSET="${{ matrix.asset_name }}"
+          
+          echo "Downloading $ASSET from OpenList v${VERSION}..."
+          
+          # Download from OpenList GitHub releases
+          DOWNLOAD_URL=$(curl -sL \
+            "https://api.github.com/repos/openlistteam/openlist/releases/tags/v${VERSION}" \
+            | jq -r ".assets[] | select(.name == \"$ASSET\") | .browser_download_url")
+          
+          if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" = "null" ]; then
+            echo "ERROR: Asset $ASSET not found in OpenList v${VERSION} release"
+            exit 1
+          fi
+          
+          curl -sL "$DOWNLOAD_URL" -o openlist.tar.gz
+          mkdir -p extracted
+          tar xzf openlist.tar.gz -C extracted
+          
+          # Find the binary (it's at the root of the tar.gz)
+          BINARY=$(find extracted -name "openlist" -type f | head -1)
+          if [ -z "$BINARY" ]; then
+            echo "ERROR: Binary not found in archive"
+            exit 1
+          fi
+          
+          echo "Binary found: $BINARY ($(du -h "$BINARY" | cut -f1))"
+          chmod +x "$BINARY"
+          echo "BINARY_PATH=$BINARY" >> $GITHUB_ENV
+
+      - name: Build SPK
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          ARCH="${{ matrix.arch }}"
+          
+          chmod +x build-spk.sh
+          ./build-spk.sh "$VERSION" "$ARCH" "$BINARY_PATH"
+          
+          SPK_FILE="openlist_${ARCH}_${VERSION}.spk"
+          echo "SPK_FILE=$SPK_FILE" >> $GITHUB_ENV
+          
+          ls -lh "$SPK_FILE"
+
+      - name: Upload SPK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: spk-${{ matrix.arch }}
+          path: openlist_${{ matrix.arch }}_${{ steps.ver.outputs.version }}.spk
+          retention-days: 30
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Download all SPK artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: spk-files
+          pattern: spk-*
+          merge-multiple: true
+
+      - name: List SPK files
+        run: |
+          echo "=== SPK files to release ==="
+          ls -lh spk-files/*.spk
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name || format('v{0}', steps.ver.outputs.version) }}
+          name: OpenList v${{ steps.ver.outputs.version }}
+          body: |
+            ## OpenList v${{ steps.ver.outputs.version }} — Synology SPK
+            
+            ### 安装说明
+            
+            1. 根据你的 NAS 型号选择对应的 SPK 文件：
+               - **x64** (`openlist_x64_*.spk`) — DS224+, DS920+, DS1522+ 等 Intel/AMD 型号
+               - **arm64** (`openlist_arm64_*.spk`) — DS423+, DS623slim 等 ARM64 型号
+            2. 在 DSM 套件中心 → 手动安装 → 上传 SPK 文件
+            3. 安装完成后在应用列表找到 OpenList，点击打开
+            
+            ### 访问地址
+            
+            安装后通过 `http://<NAS-IP>:5244` 访问 OpenList Web UI
+            
+            ### 功能
+            
+            - 支持多种存储（阿里云盘、OneDrive、GoogleDrive、本地存储等）
+            - 文件预览（PDF、Markdown、视频、音频、Office 文档）
+            - WebDAV 支持
+            - 开箱即用
+          files: spk-files/*.spk
+          draft: false
+          prerelease: false
