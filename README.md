@@ -1,5 +1,5 @@
 # OpenList Synology SPK
-# OpenList 群晖DSM7套件
+OpenList 群晖DSM7套件
 将 [OpenList](https://github.com/openlistteam/openlist) 打包为 Synology DSM 7 套件（SPK）。
 
 ## 自动构建
