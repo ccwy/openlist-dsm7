@@ -24,9 +24,6 @@ call_func ()
 
 start_daemon ()
 {
-    if [ "${JELLYFIN_CONPORT}" != '' -a "${JELLYFIN_CONPORT}" -ne "${JELLYFIN_UIPORT}" ]; then
-		sed -i "s/${JELLYFIN_UIPORT}/${JELLYFIN_CONPORT}/" "${PACKAGE_BASE}/ui/config"	
-	fi
     date > ${LOG_FILE}
     declare -i i=0
     for service in "${SERVICE_COMMAND[@]}"
