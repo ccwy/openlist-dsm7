@@ -18,7 +18,7 @@ permissions:
 jobs:
   build:
     name: 📦 构建 ${{ matrix.arch }} SPK
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         include:
