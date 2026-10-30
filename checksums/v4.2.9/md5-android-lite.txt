@@ -1,5 +1,0 @@
-f711f3d4a97cb244de0200cdb9c25e86  ./openlist-android-386-lite.tar.gz
-ecfed15bb3e8bf4e11d2feb1d5f93a8d  ./openlist-android-amd64-lite.tar.gz
-2d0c865d61f1fc8a1d05d483d7974b18  ./openlist-android-arm64-lite.tar.gz
-3871153974c546d2c5fa6c56e72e0e78  ./md5-android-lite.txt
-bcda5585883f60a0a091eee54252e0cb  ./openlist-android-arm-lite.tar.gz

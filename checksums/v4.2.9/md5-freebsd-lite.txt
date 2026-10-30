@@ -1,4 +1,0 @@
-008f50160c7bf72ef24a9ea4725b0422  ./openlist-freebsd-i386-lite.tar.gz
-61889eeb993a056e8c47e854fd66f004  ./md5-freebsd-lite.txt
-3460b5f929d027deb7f240846fffb7a6  ./openlist-freebsd-arm64-lite.tar.gz
-5bc7ab7aa346a0629c2afb238dc77f89  ./openlist-freebsd-amd64-lite.tar.gz
