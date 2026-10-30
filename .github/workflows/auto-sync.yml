@@ -1,0 +1,147 @@
+name: 自动检测并同步 OpenList 新版本
+run-name: 🔄 同步 OpenList ${{ github.event.inputs.version || '最新版本' }}
+
+on:
+  # 定时调度：每 6 小时检查一次上游是否有新版本
+  schedule:
+    - cron: '0 */6 * * *'
+
+  # 手动触发
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '指定版本号 (留空则自动检测最新)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    name: 🔄 检测并同步
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.sync.outputs.version }}
+      status: ${{ steps.sync.outputs.status }}
+
+    steps:
+      - name: 📥 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 需要完整历史来检查 tags
+
+      - name: 🔄 同步二进制 + 打包 SPK
+        id: sync
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chmod +x scripts/sync-binaries.sh
+
+          ARGS=""
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            ARGS="${{ github.event.inputs.version }}"
+          fi
+
+          OUTPUT=$(./scripts/sync-binaries.sh $ARGS)
+          echo "$OUTPUT"
+
+          # 解析结果
+          RESULT=$(echo "$OUTPUT" | grep -E '^(SKIP|DONE):' | head -1)
+          if [[ "$RESULT" == SKIP:* ]]; then
+            VERSION="${RESULT#SKIP:}"
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+            echo "status=skip" >> $GITHUB_OUTPUT
+          elif [[ "$RESULT" == DONE:* ]]; then
+            VERSION="${RESULT#DONE:}"
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+            echo "status=done" >> $GITHUB_OUTPUT
+            # 提取临时目录路径
+            DOWNLOAD_DIR=$(echo "$OUTPUT" | grep '^DOWNLOAD_DIR:' | cut -d: -f2-)
+            SPK_DIR=$(echo "$OUTPUT" | grep '^SPK_DIR:' | cut -d: -f2-)
+            echo "download_dir=${DOWNLOAD_DIR}" >> $GITHUB_OUTPUT
+            echo "spk_dir=${SPK_DIR}" >> $GITHUB_OUTPUT
+          else
+            echo "status=error" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: 📤 提交校验文件到仓库
+        if: steps.sync.outputs.status == 'done'
+        run: |
+          VERSION="${{ steps.sync.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add checksums/v${VERSION}/ || true
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: add checksums for OpenList v${VERSION}"
+            git push origin main
+          fi
+
+      - name: 🏷️ 创建 Git Tag
+        if: steps.sync.outputs.status == 'done'
+        run: |
+          VERSION="${{ steps.sync.outputs.version }}"
+          git tag "v${VERSION}"
+          git push origin "v${VERSION}"
+
+      - name: 🚀 发布到 GitHub Releases（二进制 + SPK）
+        if: steps.sync.outputs.status == 'done'
+        run: |
+          VERSION="${{ steps.sync.outputs.version }}"
+          DOWNLOAD_DIR="${{ steps.sync.outputs.download_dir }}"
+          SPK_DIR="${{ steps.sync.outputs.spk_dir }}"
+
+          echo "Uploading all files to GitHub Release v${VERSION}..."
+
+          # 收集所有要上传的文件：
+          #   - 上游下载的所有二进制文件
+          #   - 打包出的 SPK 文件
+          UPLOAD_FILES=""
+
+          # 二进制文件
+          for f in "$DOWNLOAD_DIR"/*; do
+            [ -f "$f" ] && UPLOAD_FILES="${UPLOAD_FILES} $f"
+          done
+
+          # SPK 文件
+          for f in "$SPK_DIR"/*.spk; do
+            [ -f "$f" ] && UPLOAD_FILES="${UPLOAD_FILES} $f"
+          done
+
+          echo "Files to upload:"
+          for f in $UPLOAD_FILES; do
+            echo "  $(basename "$f") ($(du -h "$f" | cut -f1))"
+          done
+
+          # 使用 gh CLI 创建 release 并上传所有文件
+          gh release create "v${VERSION}" \
+            --title "OpenList v${VERSION}" \
+            --notes "## OpenList v${VERSION}
+
+          ### 📦 SPK 安装包（Synology DSM 7）
+
+          | 文件 | 架构 | 适用型号 |
+          |------|------|---------|
+          | \`openlist_x64_${VERSION}.spk\` | x86_64 | DS224+, DS920+, DS1522+ 等 |
+          | \`openlist_arm64_${VERSION}.spk\` | ARM64 | DS423+, DS623slim 等 |
+
+          **安装方法**：DSM 套件中心 → 手动安装 → 上传 SPK → 访问 http://<NAS-IP>:5244
+
+          ### 📁 上游二进制文件
+
+          以下文件来自 [OpenList v${VERSION}](https://github.com/openlistteam/openlist/releases/tag/v${VERSION})，直接转载存储。
+
+          ### 🔐 校验
+
+          MD5 校验文件已存入仓库 \`checksums/v${VERSION}/\` 目录。
+
+          ---
+          *此 Release 由自动同步工作流生成*" \
+            $UPLOAD_FILES
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

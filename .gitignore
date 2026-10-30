@@ -1,5 +1,12 @@
-*.spk
-*.tgz
+# 构建临时文件
 extracted/
 openlist.tar.gz
 __pycache__/
+
+# 构建产物不入库（通过 Releases 发布）
+*.spk
+*.tgz
+
+# 临时下载目录
+downloads/
+spk/
