@@ -4,10 +4,13 @@
 #
 # 流程：
 #   1. 检测上游最新版本（或用指定版本）
-#   2. 下载该版本所有二进制文件到临时目录
+#   2. 下载该版本所有二进制文件到工作目录
 #   3. 用其中的 linux-amd64 / linux-arm64 打包成 SPK
 #   4. 输出所有文件路径，供 CI 上传到 GitHub Releases
 #   5. 仓库中只保留 MD5 校验文件（几百字节）用于版本追踪
+#
+# 注意：工作目录在脚本退出后保留，由 CI runner 清理（runner 是临时的）。
+#       不能用 trap 清理，否则后续 CI 步骤找不到文件。
 #
 # Usage:
 #   ./scripts/sync-binaries.sh                    # 自动检测最新版本
@@ -89,12 +92,15 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# 临时工作目录（脚本结束后自动清理）
-WORK_DIR=$(mktemp -d)
+# 工作目录（固定路径，不用 mktemp，不用 trap 清理）
+# CI runner 是临时的，跑完自动销毁，不需要手动清理
+# 用固定路径是为了让后续 CI 步骤能找到文件
+WORK_DIR="${REPO_ROOT}/.sync-work"
 DOWNLOAD_DIR="${WORK_DIR}/downloads"       # 上游下载的所有二进制
 SPK_OUTPUT_DIR="${WORK_DIR}/spk"           # 打包出的 SPK
-trap "rm -rf $WORK_DIR" EXIT
 
+# 清理上一次的残留，然后创建新目录
+rm -rf "$WORK_DIR"
 mkdir -p "$DOWNLOAD_DIR" "$SPK_OUTPUT_DIR"
 
 # ── Step 1: 确定版本号 ──────────────────────────────────────────────
@@ -120,8 +126,8 @@ log "Fetching release assets..."
 ASSETS_OUTPUT=$(get_release_assets "$TARGET_VERSION")
 [ -z "$ASSETS_OUTPUT" ] && die "No assets found for v${TARGET_VERSION}"
 
-# ── Step 4: 下载该版本所有文件到临时目录 ────────────────────────────
-log "Downloading ALL assets for v${TARGET_VERSION} to temp dir..."
+# ── Step 4: 下载该版本所有文件到工作目录 ────────────────────────────
+log "Downloading ALL assets for v${TARGET_VERSION}..."
 
 DOWNLOAD_COUNT=0
 while IFS=$'\t' read -r name url size; do
@@ -154,12 +160,11 @@ chmod +x "${REPO_ROOT}/build-spk.sh"
 AMD64_TARBALL="${DOWNLOAD_DIR}/openlist-linux-amd64.tar.gz"
 if [ -f "$AMD64_TARBALL" ]; then
   log "  Building x64 SPK..."
-  EXTRACT_DIR=$(mktemp -d)
+  EXTRACT_DIR="${WORK_DIR}/extract-amd64"
   BINARY=$(extract_binary "$AMD64_TARBALL" "$EXTRACT_DIR")
   (cd "$REPO_ROOT" && ./build-spk.sh "$TARGET_VERSION" "x64" "$BINARY")
   SPK_FILE="openlist_x64_${TARGET_VERSION}.spk"
   [ -f "${REPO_ROOT}/${SPK_FILE}" ] && mv "${REPO_ROOT}/${SPK_FILE}" "${SPK_OUTPUT_DIR}/"
-  rm -rf "$EXTRACT_DIR"
   log "  OK: ${SPK_FILE}"
 fi
 
@@ -167,27 +172,25 @@ fi
 ARM64_TARBALL="${DOWNLOAD_DIR}/openlist-linux-arm64.tar.gz"
 if [ -f "$ARM64_TARBALL" ]; then
   log "  Building arm64 SPK..."
-  EXTRACT_DIR=$(mktemp -d)
+  EXTRACT_DIR="${WORK_DIR}/extract-arm64"
   BINARY=$(extract_binary "$ARM64_TARBALL" "$EXTRACT_DIR")
   (cd "$REPO_ROOT" && ./build-spk.sh "$TARGET_VERSION" "arm64" "$BINARY")
   SPK_FILE="openlist_arm64_${TARGET_VERSION}.spk"
   [ -f "${REPO_ROOT}/${SPK_FILE}" ] && mv "${REPO_ROOT}/${SPK_FILE}" "${SPK_OUTPUT_DIR}/"
-  rm -rf "$EXTRACT_DIR"
   log "  OK: ${SPK_FILE}"
 fi
 
 # ── Step 7: 输出结果摘要 ────────────────────────────────────────────
 log "========================================"
 log "Sync complete for v${TARGET_VERSION}"
-log "  Binaries (temp, for Release upload): ${DOWNLOAD_DIR}"
+log "  Binaries: ${DOWNLOAD_DIR}"
 log "    ${DOWNLOAD_COUNT} files from upstream"
-log "  SPK (temp, for Release upload): ${SPK_OUTPUT_DIR}"
+log "  SPK dir:  ${SPK_OUTPUT_DIR}"
 for f in "$SPK_OUTPUT_DIR"/*.spk; do
   [ -f "$f" ] || continue
   log "    $(basename "$f") ($(du -h "$f" | cut -f1))"
 done
 log "  Checksums (in repo): ${VERSION_CHECKSUM_DIR}"
-log "  Temp dir (auto-cleaned on exit): ${WORK_DIR}"
 log "========================================"
 
 # 输出给 CI 用的结果

@@ -7,6 +7,9 @@ __pycache__/
 *.spk
 *.tgz
 
+# 同步工作目录（临时下载+打包，不入库）
+.sync-work/
+
 # 临时下载目录
 downloads/
 spk/

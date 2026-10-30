@@ -69,11 +69,17 @@ jobs:
             VERSION="${RESULT#DONE:}"
             echo "version=${VERSION}" >> $GITHUB_OUTPUT
             echo "status=done" >> $GITHUB_OUTPUT
-            # 提取临时目录路径
+            # 提取工作目录路径
             DOWNLOAD_DIR=$(echo "$OUTPUT" | grep '^DOWNLOAD_DIR:' | cut -d: -f2-)
             SPK_DIR=$(echo "$OUTPUT" | grep '^SPK_DIR:' | cut -d: -f2-)
             echo "download_dir=${DOWNLOAD_DIR}" >> $GITHUB_OUTPUT
             echo "spk_dir=${SPK_DIR}" >> $GITHUB_OUTPUT
+            # 验证目录存在且有文件
+            echo "Verifying download dir: ${DOWNLOAD_DIR}"
+            ls -la "${DOWNLOAD_DIR}" | head -5
+            echo "File count: $(ls -1 "${DOWNLOAD_DIR}" | wc -l)"
+            echo "Verifying SPK dir: ${SPK_DIR}"
+            ls -la "${SPK_DIR}"
           else
             echo "❌ Unexpected output, no SKIP or DONE found"
             echo "status=error" >> $GITHUB_OUTPUT
@@ -100,8 +106,13 @@ jobs:
         if: steps.sync.outputs.status == 'done'
         run: |
           VERSION="${{ steps.sync.outputs.version }}"
-          git tag "v${VERSION}"
-          git push origin "v${VERSION}"
+          # 检查 tag 是否已存在
+          if git tag -l "v${VERSION}" | grep -q .; then
+            echo "Tag v${VERSION} already exists, skipping"
+          else
+            git tag "v${VERSION}"
+            git push origin "v${VERSION}"
+          fi
 
       - name: 🚀 发布到 GitHub Releases（二进制 + SPK）
         if: steps.sync.outputs.status == 'done'
@@ -110,32 +121,56 @@ jobs:
           DOWNLOAD_DIR="${{ steps.sync.outputs.download_dir }}"
           SPK_DIR="${{ steps.sync.outputs.spk_dir }}"
 
-          echo "Uploading all files to GitHub Release v${VERSION}..."
+          echo "=== Upload to GitHub Release v${VERSION} ==="
+          echo "Download dir: ${DOWNLOAD_DIR}"
+          echo "SPK dir: ${SPK_DIR}"
 
-          # 收集所有要上传的文件：
-          #   - 上游下载的所有二进制文件
-          #   - 打包出的 SPK 文件
-          UPLOAD_FILES=""
+          # 验证目录存在
+          if [ ! -d "$DOWNLOAD_DIR" ]; then
+            echo "❌ Download dir does not exist: $DOWNLOAD_DIR"
+            exit 1
+          fi
+          if [ ! -d "$SPK_DIR" ]; then
+            echo "❌ SPK dir does not exist: $SPK_DIR"
+            exit 1
+          fi
+
+          # 收集所有要上传的文件
+          UPLOAD_FILES=()
 
           # 二进制文件
           for f in "$DOWNLOAD_DIR"/*; do
-            [ -f "$f" ] && UPLOAD_FILES="${UPLOAD_FILES} $f"
+            if [ -f "$f" ]; then
+              UPLOAD_FILES+=("$f")
+            fi
           done
 
           # SPK 文件
           for f in "$SPK_DIR"/*.spk; do
-            [ -f "$f" ] && UPLOAD_FILES="${UPLOAD_FILES} $f"
+            if [ -f "$f" ]; then
+              UPLOAD_FILES+=("$f")
+            fi
           done
 
-          echo "Files to upload:"
-          for f in $UPLOAD_FILES; do
+          echo "=== Files to upload (${#UPLOAD_FILES[@]} total) ==="
+          for f in "${UPLOAD_FILES[@]}"; do
             echo "  $(basename "$f") ($(du -h "$f" | cut -f1))"
           done
 
-          # 使用 gh CLI 创建 release 并上传所有文件
-          gh release create "v${VERSION}" \
-            --title "OpenList v${VERSION}" \
-            --notes "## OpenList v${VERSION}
+          if [ ${#UPLOAD_FILES[@]} -eq 0 ]; then
+            echo "❌ No files to upload!"
+            exit 1
+          fi
+
+          # 创建 release 并上传所有文件
+          # 如果 release 已存在则上传到已有 release
+          if gh release view "v${VERSION}" >/dev/null 2>&1; then
+            echo "Release v${VERSION} already exists, uploading files to it..."
+            gh release upload "v${VERSION}" "${UPLOAD_FILES[@]}" --clobber
+          else
+            gh release create "v${VERSION}" \
+              --title "OpenList v${VERSION}" \
+              --notes "## OpenList v${VERSION}
 
           ### 📦 SPK 安装包（Synology DSM 7）
 
@@ -156,6 +191,15 @@ jobs:
 
           ---
           *此 Release 由自动同步工作流生成*" \
-            $UPLOAD_FILES
+              "${UPLOAD_FILES[@]}"
+          fi
+
+          echo "=== Upload complete ==="
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🧹 清理工作目录
+        if: always()
+        run: |
+          rm -rf .sync-work
+          echo "Cleaned up .sync-work"
