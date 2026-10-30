@@ -176,14 +176,14 @@ jobs:
 
           | 文件 | 架构 | 适用型号 |
           |------|------|---------|
-          | \`openlist_x64_${VERSION}.spk\` | x86_64 | DS224+, DS920+, DS1522+ 等 |
-          | \`openlist_arm64_${VERSION}.spk\` | ARM64 | DS423+, DS623slim 等 |
+          | \`openlist-dsm7_x64_v${VERSION}.spk\` | x86_64 | DS224+, DS920+, DS1522+ 等 |
+          | \`openlist-dsm7_arm64_v${VERSION}.spk\` | ARM64 | DS423+, DS623slim 等 |
 
           **安装方法**：DSM 套件中心 → 手动安装 → 上传 SPK → 访问 http://<NAS-IP>:5244
 
           ### 📁 上游二进制文件
 
-          以下文件来自 [OpenList v${VERSION}](https://github.com/openlistteam/openlist/releases/tag/v${VERSION})，直接转载存储。
+          以下文件来自 [OpenList v${VERSION}](https://github.com/openlistteam/openlist/releases/tag/v${VERSION})，直接转载存储，文件名已加版本号。
 
           ### 🔐 校验
 
