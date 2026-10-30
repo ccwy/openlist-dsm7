@@ -20,7 +20,7 @@ permissions:
 jobs:
   sync:
     name: 🔄 检测并同步
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.sync.outputs.version }}
       status: ${{ steps.sync.outputs.status }}
