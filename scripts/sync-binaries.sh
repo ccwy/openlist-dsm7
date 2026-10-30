@@ -31,7 +31,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CHECKSUMS_DIR="${REPO_ROOT}/checksums"   # MD5 文件存入仓库（很小）
 
 # SPK 包命名前缀：群晖标识 + 系统版本标识
-SPK_PREFIX="openlist-dsm7"
+SPK_PREFIX="openlist-Synology-dsm7"
 
 # GitHub API 认证
 AUTH_ARGS=()
