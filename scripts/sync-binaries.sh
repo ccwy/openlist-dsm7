@@ -127,7 +127,7 @@ DOWNLOAD_COUNT=0
 while IFS=$'\t' read -r name url size; do
   [ -z "$name" ] && continue
   download_file "$url" "${DOWNLOAD_DIR}/${name}"
-  ((DOWNLOAD_COUNT++))
+  DOWNLOAD_COUNT=$((DOWNLOAD_COUNT + 1))
 done <<< "$ASSETS_OUTPUT"
 
 log "Downloaded ${DOWNLOAD_COUNT} files total"
@@ -182,7 +182,8 @@ log "Sync complete for v${TARGET_VERSION}"
 log "  Binaries (temp, for Release upload): ${DOWNLOAD_DIR}"
 log "    ${DOWNLOAD_COUNT} files from upstream"
 log "  SPK (temp, for Release upload): ${SPK_OUTPUT_DIR}"
-ls -1 "$SPK_OUTPUT_DIR"/*.spk 2>/dev/null | while read -r f; do
+for f in "$SPK_OUTPUT_DIR"/*.spk; do
+  [ -f "$f" ] || continue
   log "    $(basename "$f") ($(du -h "$f" | cut -f1))"
 done
 log "  Checksums (in repo): ${VERSION_CHECKSUM_DIR}"

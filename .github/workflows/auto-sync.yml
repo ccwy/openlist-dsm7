@@ -24,6 +24,8 @@ jobs:
     outputs:
       version: ${{ steps.sync.outputs.version }}
       status: ${{ steps.sync.outputs.status }}
+      download_dir: ${{ steps.sync.outputs.download_dir }}
+      spk_dir: ${{ steps.sync.outputs.spk_dir }}
 
     steps:
       - name: 📥 检出代码
@@ -43,8 +45,19 @@ jobs:
             ARGS="${{ github.event.inputs.version }}"
           fi
 
-          OUTPUT=$(./scripts/sync-binaries.sh $ARGS)
+          # 运行脚本，即使失败也捕获输出
+          set +e
+          OUTPUT=$(./scripts/sync-binaries.sh $ARGS 2>&1)
+          EXIT_CODE=$?
+          set -e
+
           echo "$OUTPUT"
+
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "❌ Script failed with exit code $EXIT_CODE"
+            echo "status=error" >> $GITHUB_OUTPUT
+            exit 1
+          fi
 
           # 解析结果
           RESULT=$(echo "$OUTPUT" | grep -E '^(SKIP|DONE):' | head -1)
@@ -62,6 +75,7 @@ jobs:
             echo "download_dir=${DOWNLOAD_DIR}" >> $GITHUB_OUTPUT
             echo "spk_dir=${SPK_DIR}" >> $GITHUB_OUTPUT
           else
+            echo "❌ Unexpected output, no SKIP or DONE found"
             echo "status=error" >> $GITHUB_OUTPUT
             exit 1
           fi
