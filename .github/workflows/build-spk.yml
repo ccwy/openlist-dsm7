@@ -31,7 +31,7 @@ jobs:
 
     steps:
       - name: 📥 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 🔖 提取版本号
         id: version
@@ -116,7 +116,7 @@ jobs:
 
       - name: 📤 上传构建产物
         if: steps.version.outputs.has_version == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: spk-${{ matrix.arch }}
           path: openlist_${{ matrix.arch }}_${{ steps.version.outputs.version }}.spk
@@ -124,7 +124,7 @@ jobs:
 
       - name: 🚀 发布到 Release
         if: steps.version.outputs.has_version == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: OpenList ${{ steps.version.outputs.tag }}
