@@ -2,9 +2,9 @@ name: 自动检测并同步 OpenList 新版本
 run-name: 🔄 同步 OpenList ${{ github.event.inputs.version || '最新版本' }}
 
 on:
-  # 定时调度：每 6 小时检查一次上游是否有新版本
+  # 定时调度：每 24 小时检查一次上游是否有新版本
   schedule:
-    - cron: '0 */6 * * *'
+    - cron: '0 */24 * * *'
 
   # 手动触发
   workflow_dispatch:

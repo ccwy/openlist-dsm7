@@ -13,7 +13,7 @@ OpenList 群晖DSM7套件
 ## 🔄 自动同步流程
 
 ```
-每 6 小时定时检查 (cron)
+每 24 小时定时检查 (cron)
         ↓
 查询 openlistteam/openlist 最新 release → v4.2.10
         ↓
