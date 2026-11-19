@@ -1,0 +1,5 @@
+4e69c35580312a80cd08fdd32139a5a1  ./openlist-android-arm.tar.gz
+12986ca60a8b561ea26b3f53cac738ed  ./openlist-android-arm64.tar.gz
+1e50e78407d8d2789f3aae3f93bb99d9  ./openlist-android-amd64.tar.gz
+1666a732f86cc47b65dfebe44b3f2f30  ./md5-android.txt
+95aad4ff8fd1c715c7bc6bc89e1ad320  ./openlist-android-386.tar.gz

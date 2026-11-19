@@ -1,0 +1,4 @@
+169ac350105fb7db18df3c8f91e04a08  ./openlist-freebsd-arm64.tar.gz
+032755a99b2c500f5f88e392655cb0d8  ./openlist-freebsd-amd64.tar.gz
+c4d92de147e35c6b71277b2a5edd7f23  ./md5-freebsd.txt
+c5fb3ccd4e6e3ce6ecd74988badd0aa6  ./openlist-freebsd-i386.tar.gz
